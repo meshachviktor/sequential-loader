@@ -83,11 +83,10 @@
     SequentialLoader.prototype.loadStylesheet = function(stylesheetObject) {
         var element = document.createElement('link');
         var attributes = Object.keys(stylesheetObject);
+        element.rel = 'stylesheet';
         for (let attribute of attributes) {
             element[attribute] = stylesheetObject[attribute];
         }
-        element.rel = 'stylesheet';
-        element.type = 'text/css';
         element.onload = this.loadNextStylesheet.bind(this);
         document.head.append(element);
     }
@@ -115,7 +114,7 @@
             this.nextFont++;
             this.loadNextFont();
         }.bind(this)).catch(function(error) {
-            console.error(error);
+            throw new Error(`Could not load font from source: ${fontObject['source']}`);
         });
     }
 
@@ -134,7 +133,6 @@
         for (let attribute of attributes) {
             element[attribute] = scriptObject[attribute];
         }
-        element.type = 'text/javascript';
         element.onload = this.loadNextScript.bind(this);
         document.head.append(element);
     }
