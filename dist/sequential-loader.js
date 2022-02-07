@@ -5,13 +5,14 @@
  */
 (function() {
     "use strict";
-    function SequentialLoader(URL) {
+    function SequentialLoader(URL, debug) {
         if (URL === '' || URL === undefined) {
             throw new Error('URL cannot be empty!');
         }
         if (!(URL.endsWith('.json'))) {
             throw new Error('Resources file path must point to a json document!');
         }
+        this._debug = debug;
         this.url = URL;
         this.stylesheets = null;
         this.fonts = null;
@@ -19,6 +20,8 @@
         this.stylesheetsLength = null;
         this.fontsLength = null;
         this.scriptsLength = null;
+        this.batchOrder = null;
+        this.nextBatch = 0;
         this.nextStylesheet = 0;
         this.nextFont = 0;
         this.nextScript = 0;
@@ -30,6 +33,10 @@
         this.stylesheetsLoadedEvent = new Event('sl.stylesheetsloaded');
         this.scriptsLoadedEvent = new Event('sl.scriptsloaded');
         this.allResourcesLoadedEvent = new Event('sl.allresourcesloaded');
+    }
+
+    SequentialLoader.prototype.toString = function() {
+        return 'SequentialLoader';
     }
 
     SequentialLoader.prototype.isArray = function(object) {
@@ -128,7 +135,7 @@
             element[attribute] = scriptObject[attribute];
         }
         element.type = 'text/javascript';
-        element.onload = this.loadNextScript.bind(this);;
+        element.onload = this.loadNextScript.bind(this);
         document.head.append(element);
     }
 
@@ -181,16 +188,43 @@
         this.fonts = fontsArray;
     }
 
-    SequentialLoader.prototype.initEventHandlers = function() {
-        document.addEventListener(this.allResourcesInitialisedEvent.type, this.loadNextFont.bind(this));
-        document.addEventListener(this.fontsLoadedEvent.type, this.loadNextStylesheet.bind(this));
-        document.addEventListener(this.stylesheetsLoadedEvent.type, this.loadNextScript.bind(this));
-        document.addEventListener(this.scriptsLoadedEvent.type, function() {
+    SequentialLoader.prototype.processBatch = function() {
+        if (this.nextBatch < this.batchOrder.length) {
+            if (this.batchOrder[this.nextBatch] === 'fonts') {
+                this.loadNextFont(this.fonts);
+            } else if (this.batchOrder[this.nextBatch] === 'stylesheets') {
+                this.loadNextStylesheet(this.stylesheets);
+            } else if (this.batchOrder[this.nextBatch] === 'scripts') {
+                this.loadNextScript(this.scripts);
+            } else {
+                throw new Error(`Invalid resource type '${item}'`);
+            }
+        } else {
             document.dispatchEvent(this.allResourcesLoadedEvent);
-        }.bind(this));
-        document.addEventListener(this.allResourcesLoadedEvent.type, function() {
-            console.log('Sequential loading of all application resources completed.');
-        });
+            return;
+        }
+        this.nextBatch++;
+    }
+
+    SequentialLoader.prototype.initEventHandlers = function() {
+        document.addEventListener(this.allResourcesInitialisedEvent.type, this.processBatch.bind(this));
+        document.addEventListener(this.fontsLoadedEvent.type, this.processBatch.bind(this));
+        document.addEventListener(this.stylesheetsLoadedEvent.type, this.processBatch.bind(this));
+        document.addEventListener(this.scriptsLoadedEvent.type, this.processBatch.bind(this));
+        if (this._debug) {
+            document.addEventListener(this.allResourcesLoadedEvent.type, function() {
+                console.log('Sequential loading of all application resources completed.');
+            });
+            document.addEventListener(this.fontsLoadedEvent.type, function() {
+                console.log('Finished loading all fonts.');
+            });
+            document.addEventListener(this.stylesheetsLoadedEvent.type, function() {
+                console.log('Finished loading all stylesheets.');
+            });
+            document.addEventListener(this.scriptsLoadedEvent.type, function() {
+                console.log('Finished loading all scripts.');
+            });
+        }
     }
 
     SequentialLoader.prototype.initLoading = function() {
@@ -209,16 +243,24 @@
             }
         }).then(function(data) {
             if (this.isJSONString(data)) {
-                let resources = JSON.parse(data);
-                if (!(resources['fonts'] === undefined)) {
-                    this.initFontLoading(resources['fonts']);
-                }      
-                if (!(resources['stylesheets'] === undefined)) {
-                    this.initSylesheetLoading(resources['stylesheets']);
+                var resources = JSON.parse(data);
+                if (resources.order === undefined) {
+                    var order = Object.keys(resources);
+                    this.batchOrder = order;
+                } else {
+                    this.batchOrder = resources.order;
                 }
-                if (!(resources['scripts'] === undefined)) {
-                    this.initScriptLoading(resources['scripts']);
-                }
+                this.batchOrder.forEach(function(item) {
+                    if (item === 'fonts') {
+                        this.initFontLoading(resources['fonts']);
+                    } else if (item === 'stylesheets') {
+                        this.initSylesheetLoading(resources['stylesheets']);
+                    } else if (item === 'scripts') {
+                        this.initScriptLoading(resources['scripts']);
+                    } else {
+                        throw new Error(`Invalid resource type '${item}'`);
+                    }
+                }.bind(this));
                 document.dispatchEvent(this.allResourcesInitialisedEvent);
             } else {
                 throw new Error("Content of resources file does not contain a valid json string.");
@@ -226,6 +268,6 @@
         }.bind(this));
     }
 
-    window.sequentialLoader = new SequentialLoader(document.currentScript.dataset.slResources);
+    window.sequentialLoader = new SequentialLoader(document.currentScript.dataset.slResources, ((document.currentScript.dataset.slDebug === 'true') ? true : false));
     window.sequentialLoader.initLoading();
 })();
