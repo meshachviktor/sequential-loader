@@ -240,11 +240,6 @@
     }
 
     SequentialLoader.prototype.initEventHandlers = function() {
-        document.addEventListener(this.allResourcesInitialisedEvent.type, this.processBatch.bind(this));
-        document.addEventListener(this.fontsLoadedEvent.type, this.processBatch.bind(this));
-        document.addEventListener(this.stylesheetsLoadedEvent.type, this.processBatch.bind(this));
-        document.addEventListener(this.scriptsLoadedEvent.type, this.processBatch.bind(this));
-        window.addEventListener('error', this.detectError.bind(this));
         if (this._debug) {
             document.addEventListener(this.allResourcesLoadedEvent.type, function() {
                 console.log('Sequential loading of all application resources completed.');
@@ -259,6 +254,12 @@
                 console.log('Finished loading all scripts.');
             });
         }
+        document.addEventListener(this.allResourcesInitialisedEvent.type, this.processBatch.bind(this));
+        document.addEventListener(this.fontsLoadedEvent.type, this.processBatch.bind(this));
+        document.addEventListener(this.stylesheetsLoadedEvent.type, this.processBatch.bind(this));
+        document.addEventListener(this.scriptsLoadedEvent.type, this.processBatch.bind(this));
+        window.addEventListener('error', this.detectError.bind(this));
+
     }
 
     SequentialLoader.prototype.initLoading = function() {
